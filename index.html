@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ewidencja bezrachunkowa ESTIHOUSE</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 900px; }
+    label { display: block; margin-top: 10px; }
+    input, select, datalist, button { padding: 5px; margin-top: 5px; width: 100%; max-width: 300px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+    th { background: #eee; }
+    button.delete-btn { padding: 2px 8px; font-size: 14px; }
+    .company-info { text-align: center; margin-bottom: 10px; }
+    h1 { text-align: center; }
+    .report-controls { margin-top: 20px; }
+    .report-controls label, .report-controls input, .report-controls button {
+      display: inline-block;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="company-info">
+    <strong>ESTIHOUSE sp. z o.o.</strong><br>
+    Różana 39<br>
+    67-100 Nowe Żabno<br>
+    NIP 9252142276
+  </div>
+
+  <h1>Ewidencja bezrachunkowa</h1>
+
+  <form id="entryForm">
+    <label for="date">Data:</label>
+    <input type="date" id="date" required />
+
+    <label for="service">Usługa:</label>
+    <input list="servicesList" id="service" autocomplete="off" required />
+    <datalist id="servicesList"></datalist>
+
+    <label for="client">Klient:</label>
+    <input type="text" id="client" required />
+
+    <label for="paymentMethod">Sposób płatności:</label>
+    <select id="paymentMethod" required>
+      <option value="">-- Wybierz --</option>
+      <option value="gotówka">gotówka</option>
+      <option value="przelew">przelew</option>
+      <option value="blik">blik</option>
+      <option value="znany lek">znany lek</option>
+    </select>
+
+    <label for="amount">Kwota brutto (PLN):</label>
+    <input type="number" id="amount" min="0" step="0.01" required />
+
+    <label for="kpNumber">Nr KP (opcjonalnie):</label>
+    <input type="text" id="kpNumber" />
+
+    <button type="submit">Dodaj wpis</button>
+  </form>
+
+  <table id="entriesTable">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Usługa</th>
+        <th>Klient</th>
+        <th>Sposób płatności</th>
+        <th>Kwota brutto(PLN)</th>
+        <th>Nr KP</th>
+        <th>Usuń</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- wpisy -->
+    </tbody>
+  </table>
+
+  <div class="report-controls">
+    <h2>Generuj raporty</h2>
+
+    <label for="dailyReportDate">Raport dzienny (wybierz datę):</label>
+    <input type="date" id="dailyReportDate" />
+    <button onclick="generateDailyReport()">Generuj raport dzienny</button><br><br>
+
+    <label for="monthlyReportMonth">Raport miesięczny (wybierz miesiąc):</label>
+    <input type="month" id="monthlyReportMonth" />
+    <button onclick="generateMonthlyReport()">Generuj raport miesięczny</button><br><br>
+
+    <button onclick="saveToFile()">Eksportuj dane do pliku JSON</button>
+    <input type="file" id="fileInput" accept=".json" />
+    <button onclick="loadFromFile()">Importuj dane z pliku JSON</button>
+  </div>
+
+<script>
+  const entryForm = document.getElementById("entryForm");
+  const entriesTableBody = document.querySelector("#entriesTable tbody");
+  const servicesDatalist = document.getElementById("servicesList");
+
+  let entries = [];
+
+  // Zapis do localStorage
+  function saveToLocalStorage() {
+    localStorage.setItem("ewidencja_estihouse_entries", JSON.stringify(entries));
+  }
+
+  // Wczytanie z localStorage
+  function loadFromLocalStorage() {
+    const data = localStorage.getItem("ewidencja_estihouse_entries");
+    if (data) {
+      try {
+        entries = JSON.parse(data);
+        updateServicesDatalist();
+        renderEntries();
+      } catch {
+        console.warn("Nie udało się wczytać danych z localStorage.");
+      }
+    }
+  }
+
+  function updateServicesDatalist() {
+    servicesDatalist.innerHTML = "";
+    const uniqueServices = [...new Set(entries.map(e => e.service))];
+    uniqueServices.forEach(s => {
+      const option = document.createElement("option");
+      option.value = s;
+      servicesDatalist.appendChild(option);
+    });
+  }
+
+  function renderEntries() {
+    entriesTableBody.innerHTML = "";
+    entries.forEach((e, i) => {
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td>${e.date}</td>
+        <td>${e.service}</td>
+        <td>${e.client}</td>
+        <td>${e.paymentMethod}</td>
+        <td>${e.amount.toFixed(2)}</td>
+        <td>${e.kpNumber || ""}</td>
+        <td><button class="delete-btn" onclick="deleteEntry(${i})">Usuń</button></td>
+      `;
+
+      entriesTableBody.appendChild(tr);
+    });
+  }
+
+  entryForm.addEventListener("submit", e => {
+    e.preventDefault();
+
+    const date = document.getElementById("date").value;
+    const service = document.getElementById("service").value.trim();
+    const client = document.getElementById("client").value.trim();
+    const paymentMethod = document.getElementById("paymentMethod").value;
+    const amount = parseFloat(document.getElementById("amount").value);
+    const kpNumber = document.getElementById("kpNumber").value.trim();
+
+    if (!date || !service || !client || !paymentMethod || isNaN(amount)) {
+      alert("Wypełnij poprawnie wszystkie wymagane pola.");
+      return;
+    }
+
+    // Dodaj usługę do datalist jeśli nowa
+    if (![...servicesDatalist.options].some(opt => opt.value === service)) {
+      const option = document.createElement("option");
+      option.value = service;
+      servicesDatalist.appendChild(option);
+    }
+
+    entries.push({ date, service, client, paymentMethod, amount, kpNumber });
+    saveToLocalStorage();
+    renderEntries();
+    entryForm.reset();
+  });
+
+  function deleteEntry(index) {
+    if (confirm("Czy na pewno chcesz usunąć ten wpis?")) {
+      entries.splice(index, 1);
+      saveToLocalStorage();
+      renderEntries();
+    }
+  }
+
+  function showReportWindow(data, title) {
+    const totalAmount = data.reduce((acc, e) => acc + e.amount, 0);
+    const tableHtml = `
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th><th>Usługa</th><th>Klient</th><th>Sposób płatności</th><th>Kwota (PLN)</th><th>Nr KP</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(e => `
+            <tr>
+              <td>${e.date}</td>
+              <td>${e.service}</td>
+              <td>${e.client}</td>
+              <td>${e.paymentMethod}</td>
+              <td>${e.amount.toFixed(2)}</td>
+              <td>${e.kpNumber || ""}</td>
+            </tr>`).join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align:right;"><strong>Razem:</strong></td>
+            <td><strong>${totalAmount.toFixed(2)} PLN</strong></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #333; padding: 8px; }
+            th { background-color: #eee; }
+            h1, .company-info { text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="company-info">
+            ESTIHOUSE sp. z o.o.<br>
+            Różana 39<br>
+            67-100 Nowe Żabno<br>
+            NIP 9252142276
+          </div>
+          <h1>${title}</h1>
+          ${tableHtml}
+          <button onclick="window.print()">Drukuj / Zapisz do PDF</button>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
+  function generateDailyReport() {
+    const selectedDate = document.getElementById("dailyReportDate").value;
+    if (!selectedDate) {
+      alert("Wybierz datę raportu dziennego!");
+      return;
+    }
+    const filtered = entries.filter(e => e.date === selectedDate);
+    if (filtered.length === 0) {
+      alert("Brak wpisów dla wybranej daty: " + selectedDate);
+      return;
+    }
+    showReportWindow(filtered, `Raport dzienny ewidencji bezrachunkowej - ${selectedDate}`);
+  }
+
+  function generateMonthlyReport() {
+    const month = document.getElementById("monthlyReportMonth").value;
+    if (!month) {
+      alert("Wybierz miesiąc raportu miesięcznego!");
+      return;
+    }
+    // month ma format "YYYY-MM"
+    const filtered = entries.filter(e => e.date.startsWith(month));
+    if (filtered.length === 0) {
+      alert("Brak wpisów dla wybranego miesiąca: " + month);
+      return;
+    }
+    showReportWindow(filtered, `Raport miesięczny ewidencji bezrachunkowej - ${month}`);
+  }
+
+  // Funkcje eksportu/importu JSON dla wygody
+
+  function saveToFile() {
+    const dataStr = JSON.stringify(entries, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ewidencja_estihouse.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function loadFromFile() {
+    const input = document.getElementById("fileInput");
+    if (!input.files.length) {
+      alert("Wybierz plik JSON do zaimportowania.");
+      return;
+    }
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (Array.isArray(imported)) {
+          entries = imported;
+          saveToLocalStorage();
+          updateServicesDatalist();
+          renderEntries();
+          alert("Dane zostały zaimportowane.");
+          input.value = ""; // reset input
+        } else {
+          alert("Nieprawidłowy format pliku.");
+        }
+      } catch {
+        alert("Błąd podczas odczytu pliku JSON.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Na start wczytaj dane
+  loadFromLocalStorage();
+
+</script>
+
+</body>
+</html>
