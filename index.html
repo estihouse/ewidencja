@@ -1,10 +1,12 @@
 <!DOCTYPE html>
+
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <title>Ewidencja bezrachunkowa ESTIHOUSE</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; max-width: 900px; }
+<link crossorigin="anonymous" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." referrerpolicy="no-referrer" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<title>Ewidencja Godzin i Bezrachunkowa ESTIHOUSE</title>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 1200px; }
     label { display: block; margin-top: 10px; }
     input, select, datalist, button { padding: 5px; margin-top: 5px; width: 100%; max-width: 300px; }
     table { border-collapse: collapse; width: 100%; margin-top: 20px; }
@@ -12,231 +14,1428 @@
     th { background: #eee; }
     button.delete-btn { padding: 2px 8px; font-size: 14px; }
     .company-info { text-align: center; margin-bottom: 10px; }
-    h1 { text-align: center; }
+    h1, h2 { text-align: center; }
     .report-controls { margin-top: 20px; }
     .report-controls label, .report-controls input, .report-controls button {
       display: inline-block;
       margin-right: 10px;
       vertical-align: middle;
     }
+    .tabs { display: flex; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; cursor: pointer; background: #eee; border: 1px solid #ccc; }
+    .tab.active { background: #fff; border-bottom: 1px solid #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .form-container { display: flex; gap: 30px; }
+    .form-section { flex: 1; }
+    .kp-number { font-weight: bold; color: #0066cc; }
+    .payroll-summary { background: #f5f5f5; padding: 15px; margin-top: 20px; border-radius: 5px; }
+    .payroll-summary h3 { margin-top: 0; }
+    .payroll-summary table { width: auto; margin-top: 10px; }
+    .negative { color: red; }
+    .kp-document {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      border: 1px solid #000;
+    }
+    .kp-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .kp-section {
+      margin-bottom: 15px;
+    }
+    .kp-signatures {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 50px;
+    }
+    .kp-signature-line {
+      border-top: 1px solid #000;
+      width: 200px;
+      margin-top: 40px;
+    }
+    .hidden-column {
+      display: none;
+    }
+    #kpPeriodControls {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+    #kpPeriodControls label {
+      display: inline-block;
+      margin-right: 10px;
+    }
+    #kpPeriodControls input {
+      padding: 5px;
+      margin-right: 15px;
+    }
   </style>
 </head>
 <body>
+<div id="firebase-status" style="background: #f0f0f0; color: #333; padding: 10px; font-weight: bold; border-bottom: 2px solid #ccc;">
+    🔄 Oczekiwanie na logowanie do Firebase...
+  </div>
 
-  <div class="company-info">
-    <strong>ESTIHOUSE sp. z o.o.</strong><br>
-    Różana 39<br>
-    67-100 Nowe Żabno<br>
+<div class="company-info">
+<strong>ESTIHOUSE sp. z o.o.</strong><br/>
+    Różana 39<br/>
+    67-100 Nowe Żabno<br/>
     NIP 9252142276
   </div>
-
-  <h1>Ewidencja bezrachunkowa</h1>
-
-  <form id="entryForm">
-    <label for="date">Data:</label>
-    <input type="date" id="date" required />
-
-    <label for="service">Usługa:</label>
-    <input list="servicesList" id="service" autocomplete="off" required />
-    <datalist id="servicesList"></datalist>
-
-    <label for="client">Klient:</label>
-    <input type="text" id="client" required />
-
-    <label for="paymentMethod">Sposób płatności:</label>
-    <select id="paymentMethod" required>
-      <option value="">-- Wybierz --</option>
-      <option value="gotówka">gotówka</option>
-      <option value="przelew">przelew</option>
-      <option value="blik">blik</option>
-      <option value="znany lek">znany lek</option>
-    </select>
-
-    <label for="amount">Kwota brutto (PLN):</label>
-    <input type="number" id="amount" min="0" step="0.01" required />
-
-    <label for="kpNumber">Nr KP (opcjonalnie):</label>
-    <input type="text" id="kpNumber" />
-
-    <button type="submit">Dodaj wpis</button>
-  </form>
-
-  <table id="entriesTable">
-    <thead>
-      <tr>
-        <th>Data</th>
-        <th>Usługa</th>
-        <th>Klient</th>
-        <th>Sposób płatności</th>
-        <th>Kwota brutto(PLN)</th>
-        <th>Nr KP</th>
-        <th>Usuń</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- wpisy -->
-    </tbody>
-  </table>
-
-  <div class="report-controls">
-    <h2>Generuj raporty</h2>
-
-    <label for="dailyReportDate">Raport dzienny (wybierz datę):</label>
-    <input type="date" id="dailyReportDate" />
-    <button onclick="generateDailyReport()">Generuj raport dzienny</button><br><br>
-
-    <label for="monthlyReportMonth">Raport miesięczny (wybierz miesiąc):</label>
-    <input type="month" id="monthlyReportMonth" />
-    <button onclick="generateMonthlyReport()">Generuj raport miesięczny</button><br><br>
-
-    <button onclick="saveToFile()">Eksportuj dane do pliku JSON</button>
-    <input type="file" id="fileInput" accept=".json" />
-    <button onclick="loadFromFile()">Importuj dane z pliku JSON</button>
-  </div>
-
+<div class="tabs">
+<div class="tab active" onclick="switchTab('hours')">Zestawienie godzin</div>
+<div class="tab" onclick="switchTab('accounting')">Ewidencja bezrachunkowa</div>
+<div class="tab" onclick="switchTab('payroll')">Lista płac</div>
+<div class="tab" onclick="switchTab('reports')">Raporty</div>
+<div class="tab" onclick="switchTab('settings')">Ustawienia</div>
+</div>
+<!-- Zestawienie godzin -->
+<div class="tab-content active" id="hours">
+<h1>Zestawienie godzin konsultacji</h1>
+<div class="form-container">
+<div class="form-section">
+<form id="hoursForm">
+<label for="contractor">Zleceniobiorca:</label>
+<input id="contractor" required="" type="text" value="Aleksandra Baranowska"/>
+<label for="contractDate">Data umowy zlecenia:</label>
+<input id="contractDate" required="" type="date" value="2025-05-07"/>
+<label for="consultationDate">Data konsultacji:</label>
+<input id="consultationDate" required="" type="date"/>
+<label for="startHour">Godzina rozpoczęcia:</label>
+<input id="startHour" max="23" min="0" required="" type="number"/>
+<label for="endHour">Godzina zakończenia:</label>
+<input id="endHour" max="23" min="0" required="" type="number"/>
+<label for="clientName">Klient (imię lub inicjały):</label>
+<input id="clientName" required="" type="text"/>
+<label for="paymentMethodHours">Sposób płatności:</label>
+<select id="paymentMethodHours" required="">
+<option value="">-- Wybierz --</option>
+<option value="gotówka">gotówka</option>
+<option value="blik">blik</option>
+<option value="znany lek">znany lek</option>
+<option value="przelew">przelew</option>
+</select>
+<label for="clientAmount">Kwota brutto od klienta (PLN):</label>
+<input id="clientAmount" min="0" required="" step="0.01" type="number" value="180.00"/>
+<label for="hourlyRate">Stawka godzinowa brutto (PLN):</label>
+<input id="hourlyRate" min="0" required="" step="0.01" type="number" value="150.00"/>
+<button type="submit">Dodaj konsultację</button>
+</form>
+</div>
+<div class="form-section">
+<h3>Podsumowanie miesiąca</h3>
+<label for="reportingMonth">Miesiąc rozliczeniowy:</label>
+<input id="reportingMonth" type="month"/>
+<p>Łączna liczba godzin: <span id="totalHours">0</span></p>
+<p>Łączne wynagrodzenie brutto: <span id="totalPayment">0.00</span> PLN</p>
+<button onclick="generateHoursReport()">Generuj zestawienie godzin</button>
+<button onclick="transferToAccounting()">Przenieś do ewidencji bezrachunkowej</button>
+</div>
+</div>
+<table id="hoursTable">
+<thead>
+<tr>
+<th>Data</th>
+<th>Godz. rozp.</th>
+<th>Godz. zak.</th>
+<th>Liczba godzin</th>
+<th>Klient</th>
+<th>Sposób płatności</th>
+<th>Usuń</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+<!-- Ewidencja bezrachunkowa -->
+<div class="tab-content" id="accounting">
+<h1>Ewidencja bezrachunkowa</h1>
+<form id="accountingForm">
+<div class="form-container">
+<div class="form-section">
+<label for="accountingDate">Data:</label>
+<input id="accountingDate" required="" type="date"/>
+<label for="service">Usługa:</label>
+<input autocomplete="off" id="service" list="servicesList" required=""/>
+<datalist id="servicesList"></datalist>
+<label for="client">Klient:</label>
+<input id="client" required="" type="text"/>
+<label for="paymentMethod">Sposób płatności:</label>
+<select id="paymentMethod" required="">
+<option value="">-- Wybierz --</option>
+<option value="gotówka">gotówka</option>
+<option value="przelew">przelew</option>
+<option value="blik">blik</option>
+<option value="znany lek">znany lek</option>
+</select>
+</div>
+<div class="form-section">
+<label for="clientAmountAccounting">Kwota brutto od klienta (PLN):</label>
+<input id="clientAmountAccounting" min="0" required="" step="0.01" type="number" value="180.00"/>
+<label for="amount">Stawka godzinowa brutto (PLN):</label>
+<input id="amount" min="0" required="" step="0.01" type="number" value="150.00"/>
+<label for="kpNumber">Nr KP (automatyczny dla gotówki):</label>
+<input id="kpNumber" readonly="" type="text"/>
+<label for="notes">Uwagi:</label>
+<input id="notes" type="text"/>
+<button type="submit">Dodaj wpis</button>
+</div>
+</div>
+</form>
+<table id="accountingTable">
+<thead>
+<tr>
+<th>Data</th>
+<th>Usługa</th>
+<th>Klient</th>
+<th>Sposób płatności</th>
+<th>Kwota brutto</th>
+<th>Nr KP</th>
+<th>Uwagi</th>
+<th>Akcje</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+<!-- Lista płac -->
+<div class="tab-content" id="payroll">
+<h1>Lista płac</h1>
+<div class="form-container">
+<div class="form-section">
+<label for="payrollMonth">Wybierz miesiąc:</label>
+<input id="payrollMonth" required="" type="month"/>
+<label for="payrollName">Nazwa listy płac / numer:</label>
+<input id="payrollName" placeholder="LP/MM/RRRR" type="text"/>
+<label for="payrollPaymentDate">Data wypłaty:</label>
+<input id="payrollPaymentDate" type="date"/>
+<button onclick="generatePayroll()"><i class="fas fa-file-invoice-dollar"></i> Generuj listę płac</button>
+</div>
+</div>
+<div id="payrollResults" style="display: none;">
+<h2>Lista płac - <span id="payrollMonthDisplay"></span></h2>
+<p><strong>Zleceniobiorca:</strong> <span id="payrollContractor"></span></p>
+<p><strong>Nazwa listy płac:</strong> <span id="payrollNameDisplay"></span></p>
+<p><strong>Data wypłaty:</strong> <span id="payrollPaymentDateDisplay"></span></p>
+<table id="payrollDetailsTable">
+<thead>
+<tr>
+<th>Data</th>
+<th>Godziny</th>
+<th>Kwota brutto</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+<div class="payroll-summary">
+<h3>Podsumowanie</h3>
+<table>
+<tr>
+<td>Łączna liczba godzin:</td>
+<td><span id="payrollTotalHours"></span></td>
+</tr>
+<tr>
+<td>Wynagrodzenie brutto:</td>
+<td><span id="payrollGrossAmount"></span> PLN</td>
+</tr>
+<tr>
+<td>Składka zdrowotna (9%):</td>
+<td class="negative">-<span id="payrollHealthContribution"></span> PLN</td>
+</tr>
+<tr>
+<td>Zaliczka na podatek (12%):</td>
+<td class="negative">-<span id="payrollTaxAdvance"></span> PLN</td>
+</tr>
+<tr>
+<td><strong>Wynagrodzenie netto:</strong></td>
+<td><strong><span id="payrollNetAmount"></span> PLN</strong></td>
+</tr>
+</table>
+</div>
+<button onclick="printPayroll()"><i class="fas fa-print"></i> Drukuj / Zapisz PDF</button>
+<button onclick="exportPayrollToExcel()"><i class="fas fa-file-excel"></i> Eksportuj do Excela</button>
+<button onclick="signPayrollPdf()"><i class="fas fa-pen-nib"></i> Podpisz PDF</button>
+</div>
+</div>
+<!-- Raporty -->
+<div class="tab-content" id="reports">
+<h1>Generowanie raportów</h1>
+<div class="report-controls">
+<h2>Raporty z zestawienia godzin</h2>
+<label for="hoursDailyReportDate">Raport dzienny (wybierz datę):</label>
+<input id="hoursDailyReportDate" type="date"/>
+<button onclick="generateHoursDailyReport()">Generuj raport dzienny</button><br/><br/>
+<label for="hoursMonthlyReportMonth">Raport miesięczny (wybierz miesiąc):</label>
+<input id="hoursMonthlyReportMonth" type="month"/>
+<button onclick="generateHoursMonthlyReport()">Generuj raport miesięczny</button><br/><br/>
+<h2>Raporty z ewidencji bezrachunkowej</h2>
+<label for="accountingDailyReportDate">Raport dzienny (wybierz datę):</label>
+<input id="accountingDailyReportDate" type="date"/>
+<button onclick="generateAccountingDailyReport()">Generuj raport dzienny</button><br/><br/>
+<label for="accountingMonthlyReportMonth">Raport miesięczny (wybierz miesiąc):</label>
+<input id="accountingMonthlyReportMonth" type="month"/>
+<button onclick="generateAccountingMonthlyReport()">Generuj raport miesięczny</button><br/><br/>
+<h2>Dokumenty KP</h2>
+<div>
+<button onclick="generateAllKp()">Generuj wszystkie KP</button>
+<button onclick="generateKpForPeriod()">Generuj KP z okresu</button>
+</div>
+<div id="kpPeriodControls">
+<label for="kpStartDate">Data od:</label>
+<input id="kpStartDate" type="date"/>
+<label for="kpEndDate">Data do:</label>
+<input id="kpEndDate" type="date"/>
+<button onclick="generateKpForSelectedPeriod()">Generuj</button>
+</div>
+</div>
+</div>
+<!-- Ustawienia -->
+<div class="tab-content" id="settings">
+<h1>Ustawienia i zarządzanie danymi</h1>
+<div class="form-container">
+<div class="form-section">
+<h2>Eksport danych</h2>
+<button onclick="exportAllData()">Eksportuj wszystkie dane do pliku JSON</button><br/><br/>
+<button onclick="exportHoursData()">Eksportuj tylko zestawienie godzin</button><br/><br/>
+<button onclick="exportAccountingData()">Eksportuj tylko ewidencję bezrachunkową</button>
+</div>
+<div class="form-section">
+<h2>Import danych</h2>
+<label for="importFile">Wybierz plik JSON do zaimportowania:</label>
+<input accept=".json" id="importFile" type="file"/><br/><br/>
+<button onclick="importData()">Importuj dane</button>
+<h2>Inne opcje</h2>
+<button onclick="clearAllData()" style="color: red;">Wyczyść wszystkie dane</button>
+</div>
+</div>
+</div>
 <script>
-  const entryForm = document.getElementById("entryForm");
-  const entriesTableBody = document.querySelector("#entriesTable tbody");
-  const servicesDatalist = document.getElementById("servicesList");
+  // Dane aplikacji
+  let hoursEntries = [];
+  let accountingEntries = [];
+  let nextKpNumber = 1;
+  let settings = {
+    companyName: "ESTIHOUSE sp. z o.o.",
+    companyAddress: "Różana 39",
+    companyPostalCode: "67-100",
+    companyCity: "Nowe Żabno",
+    companyNip: "9252142276",
+    defaultHourlyRate: 150.00,
+    clientRate: 180.00,
+    healthContributionRate: 9,
+    taxAdvanceRate: 12
+  };
 
-  let entries = [];
-
-  // Zapis do localStorage
-  function saveToLocalStorage() {
-    localStorage.setItem("ewidencja_estihouse_entries", JSON.stringify(entries));
-  }
-
-  // Wczytanie z localStorage
-  function loadFromLocalStorage() {
-    const data = localStorage.getItem("ewidencja_estihouse_entries");
-    if (data) {
-      try {
-        entries = JSON.parse(data);
-        updateServicesDatalist();
-        renderEntries();
-      } catch {
-        console.warn("Nie udało się wczytać danych z localStorage.");
+  // Inicjalizacja
+  document.addEventListener('DOMContentLoaded', function() {
+    loadFromLocalStorage();
+    updateNextKpNumber();
+    renderHoursTable();
+    renderAccountingTable();
+    document.getElementById('hourlyRate').value = settings.defaultHourlyRate.toFixed(2);
+    document.getElementById('clientAmount').value = settings.clientRate.toFixed(2);
+    document.getElementById('clientAmountAccounting').value = settings.clientRate.toFixed(2);
+    document.getElementById('amount').value = settings.defaultHourlyRate.toFixed(2);
+    
+    // Ustaw dzisiejszą datę jako domyślną w formularzach
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('consultationDate').value = today;
+    document.getElementById('accountingDate').value = today;
+    document.getElementById('hoursDailyReportDate').value = today;
+    document.getElementById('accountingDailyReportDate').value = today;
+    
+    // Automatyczne uzupełnienie numeru listy płac
+    document.getElementById('payrollMonth').addEventListener('change', function() {
+      const val = this.value;
+      if (val && !document.getElementById('payrollName').value) {
+        const [year, month] = val.split("-");
+        document.getElementById('payrollName').value = `LP/${month}/${year}`;
       }
-    }
-  }
-
-  function updateServicesDatalist() {
-    servicesDatalist.innerHTML = "";
-    const uniqueServices = [...new Set(entries.map(e => e.service))];
-    uniqueServices.forEach(s => {
-      const option = document.createElement("option");
-      option.value = s;
-      servicesDatalist.appendChild(option);
     });
-  }
 
-  function renderEntries() {
-    entriesTableBody.innerHTML = "";
-    entries.forEach((e, i) => {
-      const tr = document.createElement("tr");
+    const payrollMonthInit = document.getElementById('payrollMonth').value;
+    if (payrollMonthInit && !document.getElementById('payrollName').value) {
+      const [year, month] = payrollMonthInit.split("-");
+      document.getElementById('payrollName').value = `LP/${month}/${year}`;
+    }
 
-      tr.innerHTML = `
-        <td>${e.date}</td>
-        <td>${e.service}</td>
-        <td>${e.client}</td>
-        <td>${e.paymentMethod}</td>
-        <td>${e.amount.toFixed(2)}</td>
-        <td>${e.kpNumber || ""}</td>
-        <td><button class="delete-btn" onclick="deleteEntry(${i})">Usuń</button></td>
-      `;
-
-      entriesTableBody.appendChild(tr);
+    // Obsługa zmiany metody płatności dla ewidencji
+    document.getElementById('paymentMethod').addEventListener('change', function() {
+      if (this.value === 'gotówka') {
+        document.getElementById('kpNumber').value = 'KP/' + new Date().getFullYear() + '/' + nextKpNumber.toString().padStart(4, '0');
+      } else {
+        document.getElementById('kpNumber').value = '';
+      }
     });
-  }
-
-  entryForm.addEventListener("submit", e => {
-    e.preventDefault();
-
-    const date = document.getElementById("date").value;
-    const service = document.getElementById("service").value.trim();
-    const client = document.getElementById("client").value.trim();
-    const paymentMethod = document.getElementById("paymentMethod").value;
-    const amount = parseFloat(document.getElementById("amount").value);
-    const kpNumber = document.getElementById("kpNumber").value.trim();
-
-    if (!date || !service || !client || !paymentMethod || isNaN(amount)) {
-      alert("Wypełnij poprawnie wszystkie wymagane pola.");
-      return;
-    }
-
-    // Dodaj usługę do datalist jeśli nowa
-    if (![...servicesDatalist.options].some(opt => opt.value === service)) {
-      const option = document.createElement("option");
-      option.value = service;
-      servicesDatalist.appendChild(option);
-    }
-
-    entries.push({ date, service, client, paymentMethod, amount, kpNumber });
-    saveToLocalStorage();
-    renderEntries();
-    entryForm.reset();
   });
 
-  function deleteEntry(index) {
-    if (confirm("Czy na pewno chcesz usunąć ten wpis?")) {
-      entries.splice(index, 1);
+  // Przełączanie zakładek
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.classList.remove('active');
+    });
+    
+    document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  // ========== Zestawienie godzin ==========
+  document.getElementById('hoursForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const contractor = document.getElementById('contractor').value.trim();
+    const contractDate = document.getElementById('contractDate').value;
+    const consultationDate = document.getElementById('consultationDate').value;
+    const startHour = parseInt(document.getElementById('startHour').value);
+    const endHour = parseInt(document.getElementById('endHour').value);
+    const clientName = document.getElementById('clientName').value.trim();
+    const paymentMethod = document.getElementById('paymentMethodHours').value;
+    const clientAmount = parseFloat(document.getElementById('clientAmount').value);
+    const hourlyRate = parseFloat(document.getElementById('hourlyRate').value);
+    
+    // Walidacja danych
+    if (!contractor || !contractDate || !consultationDate || isNaN(startHour) || 
+        isNaN(endHour) || !clientName || !paymentMethod || isNaN(clientAmount) || isNaN(hourlyRate)) {
+      alert('Wypełnij poprawnie wszystkie wymagane pola.');
+      return;
+    }
+    
+    if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23) {
+      alert('Godziny muszą być w zakresie 0-23.');
+      return;
+    }
+    
+    if (startHour >= endHour) {
+      alert('Godzina zakończenia musi być późniejsza niż godzina rozpoczęcia.');
+      return;
+    }
+    
+    if (clientAmount <= 0 || hourlyRate <= 0) {
+      alert('Kwoty muszą być większe od zera.');
+      return;
+    }
+    
+    const hours = endHour - startHour;
+    const amount = hours * hourlyRate;
+    
+    const newEntry = {
+      contractor,
+      contractDate,
+      date: consultationDate,
+      startHour,
+      endHour,
+      hours,
+      client: clientName,
+      paymentMethod,
+      clientAmount,
+      hourlyRate,
+      amount
+    };
+    
+    hoursEntries.push(newEntry);
+    console.log('Dodano nowy wpis:', newEntry);
+    
+    saveToLocalStorage();
+    renderHoursTable();
+    updateHoursSummary();
+    
+    // Reset formularza z zachowaniem niektórych wartości
+    document.getElementById('consultationDate').value = consultationDate; // Zachowaj datę konsultacji
+    document.getElementById('startHour').value = '';
+    document.getElementById('endHour').value = '';
+    document.getElementById('clientName').value = '';
+    document.getElementById('paymentMethodHours').value = '';
+  });
+
+  function renderHoursTable() {
+    const tbody = document.querySelector('#hoursTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!hoursEntries || !Array.isArray(hoursEntries)) {
+      console.error('hoursEntries nie jest tablicą:', hoursEntries);
+      hoursEntries = [];
+      return;
+    }
+    
+    hoursEntries.forEach((entry, index) => {
+      const tr = document.createElement('tr');
+      
+      tr.innerHTML = `
+        <td>${entry.date}</td>
+        <td>${entry.startHour}:00</td>
+        <td>${entry.endHour}:00</td>
+        <td>${entry.hours}</td>
+        <td>${entry.client}</td>
+        <td>${entry.paymentMethod}</td>
+        <td><button class="delete-btn" onclick="deleteHoursEntry(${index})">Usuń</button></td>
+      `;
+      
+      tbody.appendChild(tr);
+    });
+  }
+
+  function deleteHoursEntry(index) {
+    if (confirm('Czy na pewno chcesz usunąć ten wpis?')) {
+      hoursEntries.splice(index, 1);
       saveToLocalStorage();
-      renderEntries();
+      renderHoursTable();
+      updateHoursSummary();
     }
   }
 
-  function showReportWindow(data, title) {
-    const totalAmount = data.reduce((acc, e) => acc + e.amount, 0);
+  function updateHoursSummary() {
+    const month = document.getElementById('reportingMonth').value;
+    let filteredEntries = hoursEntries;
+    
+    if (month) {
+      filteredEntries = hoursEntries.filter(entry => entry.date.startsWith(month));
+    }
+    
+    const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.hours, 0);
+    const totalPayment = filteredEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    
+    document.getElementById('totalHours').textContent = totalHours;
+    document.getElementById('totalPayment').textContent = totalPayment.toFixed(2);
+  }
+
+  document.getElementById('reportingMonth').addEventListener('change', updateHoursSummary);
+
+  function generateHoursReport() {
+    const month = document.getElementById('reportingMonth').value;
+    if (!month) {
+      alert('Wybierz miesiąc rozliczeniowy!');
+      return;
+    }
+    
+    const filteredEntries = hoursEntries.filter(entry => entry.date.startsWith(month));
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranego miesiąca.');
+      return;
+    }
+    
+    const contractor = filteredEntries[0].contractor;
+    const contractDate = filteredEntries[0].contractDate;
+    const hourlyRate = filteredEntries[0].hourlyRate;
+    
+    const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.hours, 0);
+    const totalAmount = filteredEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    
     const tableHtml = `
+      <h2>ZESTAWIENIE GODZIN KONSULTACJI PSYCHOLOGICZNYCH</h2>
+      <p><strong>Zleceniobiorca:</strong> ${contractor}</p>
+      <p><strong>Okres rozliczeniowy:</strong> ${month}</p>
+      <p><strong>Umowa zlecenia z dnia:</strong> ${contractDate}</p>
+      
       <table>
         <thead>
           <tr>
-            <th>Data</th><th>Usługa</th><th>Klient</th><th>Sposób płatności</th><th>Kwota (PLN)</th><th>Nr KP</th>
+            <th>Lp.</th>
+            <th>Data konsultacji</th>
+            <th>Godz. rozp.</th>
+            <th>Godz. zak.</th>
+            <th>Liczba godzin</th>
+            <th>Klient</th>
+            <th>Płatność</th>
           </tr>
         </thead>
         <tbody>
-          ${data.map(e => `
+          ${filteredEntries.map((entry, idx) => `
             <tr>
-              <td>${e.date}</td>
-              <td>${e.service}</td>
-              <td>${e.client}</td>
-              <td>${e.paymentMethod}</td>
-              <td>${e.amount.toFixed(2)}</td>
-              <td>${e.kpNumber || ""}</td>
-            </tr>`).join("")}
+              <td>${idx + 1}</td>
+              <td>${entry.date}</td>
+              <td>${entry.startHour}</td>
+              <td>${entry.endHour}</td>
+              <td>${entry.hours}</td>
+              <td>${entry.client}</td>
+              <td>${entry.paymentMethod}</td>
+            </tr>
+          `).join('')}
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="4" style="text-align:right;"><strong>Razem:</strong></td>
-            <td><strong>${totalAmount.toFixed(2)} PLN</strong></td>
+            <td colspan="5" style="text-align: right;"><strong>Razem:</strong></td>
+            <td><strong>${totalHours}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      <p>Łączna liczba przepracowanych godzin w okresie: ${totalHours}</p>
+      <p>Stawka godzinowa brutto: ${hourlyRate.toFixed(2)} zł</p>
+      <p>Łączne wynagrodzenie brutto do wypłaty: ${totalAmount.toFixed(2)} zł</p>
+      
+      <div style="margin-top: 50px;">
+        <div style="float: left; width: 50%;">
+          <p>Podpis zleceniobiorcy:</p>
+          <p style="border-top: 1px solid #000; width: 80%; margin-top: 50px;"></p>
+        </div>
+        <div style="float: right; width: 50%;">
+          <p>Zatwierdzenie przez Zleceniodawcę:</p>
+          <p style="border-top: 1px solid #000; width: 80%; margin-top: 50px;"></p>
+          <p>Data zatwierdzenia: .............................</p>
+        </div>
+      </div>
+    `;
+    
+    showPrintWindow(tableHtml, `Zestawienie godzin - ${month}`);
+  }
+
+  function generateHoursDailyReport() {
+    const date = document.getElementById('hoursDailyReportDate').value;
+    if (!date) {
+      alert('Wybierz datę raportu dziennego!');
+      return;
+    }
+    
+    const filteredEntries = hoursEntries.filter(entry => entry.date === date);
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranej daty.');
+      return;
+    }
+    
+    const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.hours, 0);
+    const totalAmount = filteredEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    
+    const tableHtml = `
+      <h2>DZIENNE ZESTAWIENIE GODZIN KONSULTACJI</h2>
+      <p><strong>Data:</strong> ${date}</p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Lp.</th>
+            <th>Godz. rozp.</th>
+            <th>Godz. zak.</th>
+            <th>Liczba godzin</th>
+            <th>Klient</th>
+            <th>Płatność</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredEntries.map((entry, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${entry.startHour}:00</td>
+              <td>${entry.endHour}:00</td>
+              <td>${entry.hours}</td>
+              <td>${entry.client}</td>
+              <td>${entry.paymentMethod}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align: right;"><strong>Razem:</strong></td>
+            <td><strong>${totalHours}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+    
+    showPrintWindow(tableHtml, `Dzienne zestawienie godzin - ${date}`);
+  }
+
+  function generateHoursMonthlyReport() {
+    const month = document.getElementById('hoursMonthlyReportMonth').value;
+    if (!month) {
+      alert('Wybierz miesiąc raportu miesięcznego!');
+      return;
+    }
+    
+    const filteredEntries = hoursEntries.filter(entry => entry.date.startsWith(month));
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranego miesiąca.');
+      return;
+    }
+    
+    const contractor = filteredEntries[0].contractor;
+    const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.hours, 0);
+    const totalAmount = filteredEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    
+    // Grupowanie po dacie
+    const entriesByDate = {};
+    filteredEntries.forEach(entry => {
+      if (!entriesByDate[entry.date]) {
+        entriesByDate[entry.date] = [];
+      }
+      entriesByDate[entry.date].push(entry);
+    });
+    
+    const tableHtml = `
+      <h2>MIESIĘCZNE ZESTAWIENIE GODZIN KONSULTACJI</h2>
+      <p><strong>Zleceniobiorca:</strong> ${contractor}</p>
+      <p><strong>Miesiąc:</strong> ${month}</p>
+      
+      ${Object.entries(entriesByDate).map(([date, entries]) => {
+        const dayTotalHours = entries.reduce((sum, e) => sum + e.hours, 0);
+        const dayTotalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+        
+        return `
+          <h3>${date}</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Lp.</th>
+                <th>Godz. rozp.</th>
+                <th>Godz. zak.</th>
+                <th>Liczba godzin</th>
+                <th>Klient</th>
+                <th>Płatność</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${entries.map((entry, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td>${entry.startHour}:00</td>
+                  <td>${entry.endHour}:00</td>
+                  <td>${entry.hours}</td>
+                  <td>${entry.client}</td>
+                  <td>${entry.paymentMethod}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" style="text-align: right;"><strong>Razem dzień:</strong></td>
+                <td><strong>${dayTotalHours}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        `;
+      }).join('')}
+      
+      <div style="margin-top: 20px;">
+        <p><strong>Podsumowanie miesiąca:</strong></p>
+        <p>Łączna liczba godzin: ${totalHours}</p>
+        <p>Łączna kwota brutto: ${totalAmount.toFixed(2)} zł</p>
+      </div>
+    `;
+    
+    showPrintWindow(tableHtml, `Miesięczne zestawienie godzin - ${month}`);
+  }
+
+  function transferToAccounting() {
+    const month = document.getElementById('reportingMonth').value;
+    if (!month) {
+      alert('Wybierz miesiąc rozliczeniowy!');
+      return;
+    }
+    
+    const filteredEntries = hoursEntries.filter(entry => entry.date.startsWith(month));
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranego miesiąca.');
+      return;
+    }
+    
+    if (!confirm(`Czy na pewno chcesz przenieść ${filteredEntries.length} wpisów do ewidencji bezrachunkowej?`)) {
+      return;
+    }
+    
+    filteredEntries.forEach(entry => {
+      let kpNumber = '';
+      if (entry.paymentMethod === 'gotówka') {
+        kpNumber = 'KP/' + new Date(entry.date).getFullYear() + '/' + nextKpNumber.toString().padStart(4, '0');
+        nextKpNumber++;
+      }
+      
+      accountingEntries.push({
+        date: entry.date,
+        service: 'Konsultacja psychologiczna',
+        client: entry.client,
+        paymentMethod: entry.paymentMethod,
+        clientAmount: entry.clientAmount,
+        amount: entry.amount,
+        kpNumber,
+        notes: `Przeniesione z zestawienia godzin (${entry.startHour}:00-${entry.endHour}:00)`
+      });
+    });
+    
+    saveToLocalStorage();
+    updateNextKpNumber();
+    renderAccountingTable();
+    alert(`Pomyślnie przeniesiono ${filteredEntries.length} wpisów do ewidencji bezrachunkowej.`);
+  }
+
+  // ========== Ewidencja bezrachunkowa ==========
+  document.getElementById('accountingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const date = document.getElementById('accountingDate').value;
+    const service = document.getElementById('service').value.trim();
+    const client = document.getElementById('client').value.trim();
+    const paymentMethod = document.getElementById('paymentMethod').value;
+    const clientAmount = parseFloat(document.getElementById('clientAmountAccounting').value);
+    const amount = parseFloat(document.getElementById('amount').value);
+    let kpNumber = document.getElementById('kpNumber').value.trim();
+    const notes = document.getElementById('notes').value.trim();
+    
+    if (!date || !service || !client || !paymentMethod || isNaN(clientAmount) || isNaN(amount)) {
+      alert('Wypełnij poprawnie wszystkie wymagane pola.');
+      return;
+    }
+    
+    // Jeśli to płatność gotówką i nie ma numeru KP, wygeneruj nowy
+    if (paymentMethod === 'gotówka' && !kpNumber) {
+      kpNumber = 'KP/' + new Date(date).getFullYear() + '/' + nextKpNumber.toString().padStart(4, '0');
+      nextKpNumber++;
+    }
+    
+    // Dodaj usługę do datalist jeśli nowa
+    if (![...document.getElementById('servicesList').options].some(opt => opt.value === service)) {
+      const option = document.createElement('option');
+      option.value = service;
+      document.getElementById('servicesList').appendChild(option);
+    }
+    
+    accountingEntries.push({
+      date,
+      service,
+      client,
+      paymentMethod,
+      clientAmount,
+      amount,
+      kpNumber,
+      notes
+    });
+    
+    saveToLocalStorage();
+    renderAccountingTable();
+    
+    // Reset formularza
+    document.getElementById('service').value = '';
+    document.getElementById('client').value = '';
+    document.getElementById('paymentMethod').value = '';
+    document.getElementById('kpNumber').value = '';
+    document.getElementById('notes').value = '';
+  });
+
+  function renderAccountingTable() {
+    const tbody = document.querySelector('#accountingTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!accountingEntries || !Array.isArray(accountingEntries)) {
+      console.error('accountingEntries nie jest tablicą:', accountingEntries);
+      accountingEntries = [];
+      return;
+    }
+    
+    accountingEntries.forEach((entry, index) => {
+      const tr = document.createElement('tr');
+      
+      tr.innerHTML = `
+        <td>${entry.date}</td>
+        <td>${entry.service}</td>
+        <td>${entry.client}</td>
+        <td>${entry.paymentMethod}</td>
+        <td>${entry.clientAmount.toFixed(2)}</td>
+        <td class="hidden-column">${entry.amount.toFixed(2)}</td>
+        <td class="kp-number">${entry.kpNumber || ''}</td>
+        <td>${entry.notes || ''}</td>
+        <td>
+          <button class="delete-btn" onclick="deleteAccountingEntry(${index})">Usuń</button>
+          ${entry.kpNumber ? `<button onclick="generateSingleKp(${index})">KP</button>` : ''}
+        </td>
+      `;
+      
+      tbody.appendChild(tr);
+    });
+  }
+
+  function deleteAccountingEntry(index) {
+    if (confirm('Czy na pewno chcesz usunąć ten wpis?')) {
+      accountingEntries.splice(index, 1);
+      saveToLocalStorage();
+      renderAccountingTable();
+      updateNextKpNumber();
+    }
+    saveToFirestore();
+}
+
+  function updateNextKpNumber() {
+    // Znajdź najwyższy istniejący numer KP
+    const kpNumbers = accountingEntries
+      .filter(entry => entry.kpNumber)
+      .map(entry => {
+        const parts = entry.kpNumber.split('/');
+        return parseInt(parts[parts.length - 1]);
+      });
+    
+    const maxKpNumber = kpNumbers.length > 0 ? Math.max(...kpNumbers) : 0;
+    nextKpNumber = maxKpNumber + 1;
+  }
+
+  function generateAccountingDailyReport() {
+    const date = document.getElementById('accountingDailyReportDate').value;
+    if (!date) {
+      alert('Wybierz datę raportu dziennego!');
+      return;
+    }
+    
+    const filteredEntries = accountingEntries.filter(entry => entry.date === date);
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranej daty.');
+      return;
+    }
+    
+    const totalClientAmount = filteredEntries.reduce((sum, entry) => sum + entry.clientAmount, 0);
+    
+    const tableHtml = `
+      <h2>DZIENNA EWIDENCJA BEZRACHUNKOWA</h2>
+      <p><strong>Data:</strong> ${date}</p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Lp.</th>
+            <th>Usługa</th>
+            <th>Klient</th>
+            <th>Sposób płatności</th>
+            <th>Kwota brutto</th>
+            <th>Nr KP</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredEntries.map((entry, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${entry.service}</td>
+              <td>${entry.client}</td>
+              <td>${entry.paymentMethod}</td>
+              <td>${entry.clientAmount.toFixed(2)} zł</td>
+              <td>${entry.kpNumber || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align: right;"><strong>Razem:</strong></td>
+            <td><strong>${totalClientAmount.toFixed(2)} zł</strong></td>
             <td></td>
           </tr>
         </tfoot>
       </table>
     `;
+    
+    showPrintWindow(tableHtml, `Dzienna ewidencja bezrachunkowa - ${date}`);
+  }
 
-    const printWindow = window.open("", "_blank", "width=900,height=700");
+  function generateAccountingMonthlyReport() {
+    const month = document.getElementById('accountingMonthlyReportMonth').value;
+    if (!month) {
+      alert('Wybierz miesiąc raportu miesięcznego!');
+      return;
+    }
+    
+    const filteredEntries = accountingEntries.filter(entry => entry.date.startsWith(month));
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranego miesiąca.');
+      return;
+    }
+    
+    const totalClientAmount = filteredEntries.reduce((sum, entry) => sum + entry.clientAmount, 0);
+    const cashEntries = filteredEntries.filter(entry => entry.paymentMethod === 'gotówka');
+    const cashAmount = cashEntries.reduce((sum, entry) => sum + entry.clientAmount, 0);
+    const transferEntries = filteredEntries.filter(entry => entry.paymentMethod !== 'gotówka');
+    const transferAmount = transferEntries.reduce((sum, entry) => sum + entry.clientAmount, 0);
+    
+    // Grupowanie po dacie
+    const entriesByDate = {};
+    filteredEntries.forEach(entry => {
+      if (!entriesByDate[entry.date]) {
+        entriesByDate[entry.date] = [];
+      }
+      entriesByDate[entry.date].push(entry);
+    });
+    
+    const tableHtml = `
+      <h2>MIESIĘCZNA EWIDENCJA BEZRACHUNKOWA</h2>
+      <p><strong>Miesiąc:</strong> ${month}</p>
+      
+      ${Object.entries(entriesByDate).map(([date, entries]) => {
+        const dayTotalClientAmount = entries.reduce((sum, e) => sum + e.clientAmount, 0);
+        
+        return `
+          <h3>${date}</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Lp.</th>
+                <th>Usługa</th>
+                <th>Klient</th>
+                <th>Sposób płatności</th>
+                <th>Kwota brutto</th>
+                <th>Nr KP</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${entries.map((entry, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td>${entry.service}</td>
+                  <td>${entry.client}</td>
+                  <td>${entry.paymentMethod}</td>
+                  <td>${entry.clientAmount.toFixed(2)} zł</td>
+                  <td>${entry.kpNumber || ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" style="text-align: right;"><strong>Razem dzień:</strong></td>
+                <td><strong>${dayTotalClientAmount.toFixed(2)} zł</strong></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        `;
+      }).join('')}
+      
+      <div style="margin-top: 20px;">
+        <p><strong>Podsumowanie miesiąca:</strong></p>
+        <p>Łączna kwota od klientów: ${totalClientAmount.toFixed(2)} zł</p>
+        <p>W tym gotówka: ${cashAmount.toFixed(2)} zł</p>
+        <p>W tym przelewy: ${transferAmount.toFixed(2)} zł</p>
+      </div>
+    `;
+    
+    showPrintWindow(tableHtml, `Miesięczna ewidencja bezrachunkowa - ${month}`);
+  }
+
+  // ========== Dokumenty KP ==========
+  function generateAllKp() {
+    const filteredEntries = accountingEntries.filter(
+        entry => entry.paymentMethod === 'gotówka' && entry.kpNumber
+    );
+    
+    generateKpDocuments(filteredEntries, "Wszystkie dokumenty KP");
+  }
+
+  function generateKpForPeriod() {
+    document.getElementById('kpPeriodControls').style.display = 'block';
+    const today = new Date();
+    document.getElementById('kpStartDate').value = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    document.getElementById('kpEndDate').value = today.toISOString().split('T')[0];
+  }
+
+  function generateKpForSelectedPeriod() {
+    const startDate = document.getElementById('kpStartDate').value;
+    const endDate = document.getElementById('kpEndDate').value;
+    
+    if (!startDate || !endDate) {
+        alert('Wybierz okres dat!');
+        return;
+    }
+    
+    const filteredEntries = accountingEntries.filter(entry => {
+        return entry.paymentMethod === 'gotówka' && 
+               entry.kpNumber &&
+               entry.date >= startDate && 
+               entry.date <= endDate;
+    });
+    
+    if (filteredEntries.length === 0) {
+        alert('Brak dokumentów KP w wybranym okresie.');
+        return;
+    }
+    
+    generateKpDocuments(filteredEntries, `Dokumenty KP od ${startDate} do ${endDate}`);
+  }
+
+  function generateKpDocuments(entries, title) {
+    entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const kpHtml = entries.map(entry => `
+        <div style="page-break-after: always;" class="kp-document">
+            ${generateSingleKpHtml(entry)}
+        </div>
+    `).join('');
+    
+    showPrintWindow(kpHtml, title);
+  }
+
+  function generateSingleKpHtml(entry) {
+    return `
+        <div class="kp-header">
+            <h2>KP dowód wpłaty</h2>
+            <p><strong>numer ${entry.kpNumber}</strong></p>
+            <p>Data wystawienia: Nowe Żabno, ${formatPolishDate(entry.date)}</p>
+        </div>
+        
+        <div class="kp-section">
+            <p><strong>Przyjmujący:</strong></p>
+            <p>ESTIHOUSE sp. z o.o.</p>
+            <p>67-100 Nowe Żabno, Różana 39</p>
+            <p>NIP 9252142276</p>
+        </div>
+        
+        <table>
+            <tr>
+                <th>Lp.</th>
+                <th>Za co</th>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>${entry.service}</td>
+            </tr>
+        </table>
+        
+        <div class="kp-section">
+            <p>Słownie: ${amountToWords(entry.clientAmount)} PLN zero gr</p>
+        </div>
+        
+        <div class="kp-section">
+            <p><strong>Od kogo:</strong></p>
+            <p>${entry.client}</p>
+        </div>
+        
+        <table>
+            <tr>
+                <th>II.</th>
+                <th>Kwota</th>
+            </tr>
+            <tr>
+                <td>1 godz</td>
+                <td>${entry.clientAmount.toFixed(2)}</td>
+            </tr>
+            <tr>
+                <td><strong>Razem:</strong></td>
+                <td><strong>${entry.clientAmount.toFixed(2)}</strong></td>
+            </tr>
+        </table>
+        
+        <div class="kp-signatures">
+            <div>
+                <p><strong>Wystawił</strong></p>
+                <p>Aleksandra Baranowska</p>
+                <div class="kp-signature-line"></div>
+            </div>
+            <div>
+                <p><strong>Kwotę powyższą otrzymałem</strong></p>
+                <div class="kp-signature-line"></div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <p><strong>Uwagi:</strong> ${entry.notes || 'brak'}</p>
+        </div>
+    `;
+  }
+
+  function generateSingleKp(index) {
+    const entry = accountingEntries[index];
+    if (!entry || !entry.kpNumber) return;
+    
+    showPrintWindow(
+        `<div class="kp-document">${generateSingleKpHtml(entry)}</div>`,
+        `Dokument KP ${entry.kpNumber}`
+    );
+  }
+
+  function formatPolishDate(dateString) {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  }
+
+  function amountToWords(amount) {
+    const units = ['', 'jeden', 'dwa', 'trzy', 'cztery', 'pięć', 'sześć', 'siedem', 'osiem', 'dziewięć'];
+    const teens = ['dziesięć', 'jedenaście', 'dwanaście', 'trzynaście', 'czternaście', 'piętnaście', 'szesnaście', 'siedemnaście', 'osiemnaście', 'dziewiętnaście'];
+    const tens = ['', 'dziesięć', 'dwadzieścia', 'trzydzieści', 'czterdzieści', 'pięćdziesiąt', 'sześćdziesiąt', 'siedemdziesiąt', 'osiemdziesiąt', 'dziewięćdziesiąt'];
+    const hundreds = ['', 'sto', 'dwieście', 'trzysta', 'czterysta', 'pięćset', 'sześćset', 'siedemset', 'osiemset', 'dziewięćset'];
+    
+    const zl = Math.floor(amount);
+    const gr = Math.round((amount - zl) * 100);
+    
+    let words = '';
+    
+    if (zl >= 100) {
+      words += hundreds[Math.floor(zl / 100)] + ' ';
+    }
+    
+    const remainder = zl % 100;
+    if (remainder >= 20) {
+      words += tens[Math.floor(remainder / 10)] + ' ';
+      if (remainder % 10 > 0) {
+        words += units[remainder % 10] + ' ';
+      }
+    } else if (remainder >= 10) {
+      words += teens[remainder - 10] + ' ';
+    } else if (remainder > 0) {
+      words += units[remainder] + ' ';
+    }
+    
+    return words.trim();
+  }
+
+  // ========== Lista płac ==========
+  function generatePayroll() {
+    const month = document.getElementById('payrollMonth').value;
+    if (!month) {
+      alert('Wybierz miesiąc do generowania listy płac!');
+      return;
+    }
+    
+    const filteredEntries = hoursEntries.filter(entry => entry.date.startsWith(month));
+    if (filteredEntries.length === 0) {
+      alert('Brak wpisów dla wybranego miesiąca.');
+      return;
+    }
+    
+    const contractor = filteredEntries[0].contractor;
+    const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.hours, 0);
+    const grossAmount = filteredEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    
+    // Obliczenia wynagrodzenia netto
+    const KUP = grossAmount * 0.20; // Koszty uzyskania przychodu
+    const podstawaOpodatkowania = grossAmount - KUP;
+    const skladkaZdrowotna = grossAmount * 0.09;
+    const doOdliczeniaZdrowotna = grossAmount * 0.0775;
+    const podstawaPIT = podstawaOpodatkowania - doOdliczeniaZdrowotna;
+    const zaliczkaPIT = podstawaPIT * 0.12;
+    const netAmount = grossAmount - skladkaZdrowotna - zaliczkaPIT;
+    
+    // Wypełnij tabelę z godzinami
+    const payrollTable = document.querySelector('#payrollDetailsTable tbody');
+    payrollTable.innerHTML = '';
+    
+    filteredEntries.forEach(entry => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${entry.date}</td>
+        <td>${entry.hours}</td>
+        <td>${entry.amount.toFixed(2)}</td>
+      `;
+      payrollTable.appendChild(tr);
+    });
+    
+    // Wypełnij podsumowanie
+    document.getElementById('payrollNameDisplay').textContent = document.getElementById('payrollName').value || 'brak';
+    document.getElementById('payrollPaymentDateDisplay').textContent = document.getElementById('payrollPaymentDate').value || 'brak';
+
+    document.getElementById('payrollMonthDisplay').textContent = month;
+    document.getElementById('payrollContractor').textContent = contractor;
+    document.getElementById('payrollTotalHours').textContent = totalHours;
+    document.getElementById('payrollGrossAmount').textContent = grossAmount.toFixed(2);
+    document.getElementById('payrollHealthContribution').textContent = skladkaZdrowotna.toFixed(2);
+    document.getElementById('payrollTaxAdvance').textContent = zaliczkaPIT.toFixed(2);
+    document.getElementById('payrollNetAmount').textContent = netAmount.toFixed(2);
+    
+    // Pokaż sekcję wyników
+    document.getElementById('payrollResults').style.display = 'block';
+  }
+
+  function printPayroll() {
+    const payrollHtml = `
+      <h2>LISTA PŁAC - ${document.getElementById('payrollMonthDisplay').textContent}</h2>
+      <p><strong>Zleceniobiorca:</strong> ${document.getElementById('payrollContractor').textContent}</p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Godziny</th>
+            <th>Kwota brutto</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${document.querySelector('#payrollDetailsTable tbody').innerHTML}
+        </tbody>
+      </table>
+      
+      <div style="margin-top: 20px;">
+        <h3>Podsumowanie</h3>
+        <table>
+          <tr>
+            <td>Łączna liczba godzin:</td>
+            <td>${document.getElementById('payrollTotalHours').textContent}</td>
+          </tr>
+          <tr>
+            <td>Wynagrodzenie brutto:</td>
+            <td>${document.getElementById('payrollGrossAmount').textContent} PLN</td>
+          </tr>
+          <tr>
+            <td>Składka zdrowotna (9%):</td>
+            <td class="negative">-${document.getElementById('payrollHealthContribution').textContent} PLN</td>
+          </tr>
+          <tr>
+            <td>Zaliczka na podatek (12%):</td>
+            <td class="negative">-${document.getElementById('payrollTaxAdvance').textContent} PLN</td>
+          </tr>
+          <tr>
+            <td><strong>Wynagrodzenie netto:</strong></td>
+            <td><strong>${document.getElementById('payrollNetAmount').textContent} PLN</strong></td>
+          </tr>
+        </table>
+      </div>
+    `;
+    
+    showPrintWindow(payrollHtml, `Lista płac - ${document.getElementById('payrollMonthDisplay').textContent}`);
+  }
+
+  // ========== Eksport/import danych ==========
+  function exportAllData() {
+    const data = {
+      hoursEntries,
+      accountingEntries,
+      nextKpNumber,
+      settings,
+      exportedAt: new Date().toISOString()
+    };
+    
+    const dataStr = JSON.stringify(data, null, 2);
+    downloadFile(dataStr, 'ewidencja_estihouse_all.json');
+  }
+
+  function exportHoursData() {
+    const data = {
+      hoursEntries,
+      exportedAt: new Date().toISOString()
+    };
+    
+    const dataStr = JSON.stringify(data, null, 2);
+    downloadFile(dataStr, 'ewidencja_estihouse_hours.json');
+  }
+
+  function exportAccountingData() {
+    const data = {
+      accountingEntries,
+      nextKpNumber,
+      exportedAt: new Date().toISOString()
+    };
+    
+    const dataStr = JSON.stringify(data, null, 2);
+    downloadFile(dataStr, 'ewidencja_estihouse_accounting.json');
+  }
+
+  function importData() {
+    const fileInput = document.getElementById('importFile');
+    if (!fileInput.files.length) {
+      alert('Wybierz plik JSON do zaimportowania.');
+      return;
+    }
+    
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        
+        if (data.hoursEntries && Array.isArray(data.hoursEntries)) {
+          hoursEntries = data.hoursEntries;
+        }
+        
+        if (data.accountingEntries && Array.isArray(data.accountingEntries)) {
+          accountingEntries = data.accountingEntries;
+        }
+        
+        if (data.nextKpNumber && typeof data.nextKpNumber === 'number') {
+          nextKpNumber = data.nextKpNumber;
+        }
+        
+        if (data.settings && typeof data.settings === 'object') {
+          settings = data.settings;
+        }
+        
+        saveToLocalStorage();
+        renderHoursTable();
+        renderAccountingTable();
+        updateHoursSummary();
+        updateNextKpNumber();
+        fileInput.value = '';
+        
+        alert('Dane zostały pomyślnie zaimportowane.');
+      } catch (error) {
+        console.error('Błąd podczas importu danych:', error);
+        alert('Wystąpił błąd podczas importu danych. Sprawdź format pliku.');
+      }
+    };
+    
+    reader.readAsText(file);
+  }
+
+  function clearAllData() {
+    if (confirm('Czy na pewno chcesz usunąć WSZYSTKIE dane? Tej operacji nie można cofnąć.')) {
+      hoursEntries = [];
+      accountingEntries = [];
+      nextKpNumber = 1;
+      
+      saveToLocalStorage();
+      renderHoursTable();
+      renderAccountingTable();
+      updateHoursSummary();
+      
+      alert('Wszystkie dane zostały usunięte.');
+    }
+  }
+
+  function exportPayrollToExcel() {
+    alert('Eksport do Excela nie jest jeszcze zaimplementowany. Można to zrobić przy użyciu SheetJS (xlsx).');
+  }
+
+  function signPayrollPdf() {
+    alert('Podpis PDF wymaga integracji z systemem e-podpisu lub zewnętrznym narzędziem. Zapisz PDF i podpisz lokalnie.');
+  }
+
+  // ========== Pomocnicze funkcje ==========
+  function showPrintWindow(content, title) {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
     printWindow.document.write(`
       <html>
         <head>
           <title>${title}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; }
-            table { border-collapse: collapse; width: 100%; }
+            table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
             th, td { border: 1px solid #333; padding: 8px; }
             th { background-color: #eee; }
-            h1, .company-info { text-align: center; }
+            h1, h2, h3 { text-align: center; }
+            .company-info { text-align: center; margin-bottom: 20px; }
+            button { padding: 10px 20px; margin: 20px auto; display: block; }
+            .negative { color: red; }
+            .kp-document {
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+              border: 1px solid #000;
+            }
+            .kp-header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .kp-section {
+              margin-bottom: 15px;
+            }
+            .kp-signatures {
+              display: flex;
+              justify-content: space-between;
+              margin-top: 50px;
+            }
+            .kp-signature-line {
+              border-top: 1px solid #000;
+              width: 200px;
+              margin-top: 40px;
+            }
           </style>
         </head>
         <body>
           <div class="company-info">
-            ESTIHOUSE sp. z o.o.<br>
-            Różana 39<br>
-            67-100 Nowe Żabno<br>
-            NIP 9252142276
+            <strong>${settings.companyName}</strong><br>
+            ${settings.companyAddress}<br>
+            ${settings.companyPostalCode} ${settings.companyCity}<br>
+            NIP ${settings.companyNip}
           </div>
-          <h1>${title}</h1>
-          ${tableHtml}
+          ${content}
           <button onclick="window.print()">Drukuj / Zapisz do PDF</button>
         </body>
       </html>
@@ -244,80 +1443,60 @@
     printWindow.document.close();
   }
 
-  function generateDailyReport() {
-    const selectedDate = document.getElementById("dailyReportDate").value;
-    if (!selectedDate) {
-      alert("Wybierz datę raportu dziennego!");
-      return;
-    }
-    const filtered = entries.filter(e => e.date === selectedDate);
-    if (filtered.length === 0) {
-      alert("Brak wpisów dla wybranej daty: " + selectedDate);
-      return;
-    }
-    showReportWindow(filtered, `Raport dzienny ewidencji bezrachunkowej - ${selectedDate}`);
-  }
-
-  function generateMonthlyReport() {
-    const month = document.getElementById("monthlyReportMonth").value;
-    if (!month) {
-      alert("Wybierz miesiąc raportu miesięcznego!");
-      return;
-    }
-    // month ma format "YYYY-MM"
-    const filtered = entries.filter(e => e.date.startsWith(month));
-    if (filtered.length === 0) {
-      alert("Brak wpisów dla wybranego miesiąca: " + month);
-      return;
-    }
-    showReportWindow(filtered, `Raport miesięczny ewidencji bezrachunkowej - ${month}`);
-  }
-
-  // Funkcje eksportu/importu JSON dla wygody
-
-  function saveToFile() {
-    const dataStr = JSON.stringify(entries, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
+  function downloadFile(content, filename) {
+    const blob = new Blob([content], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = "ewidencja_estihouse.json";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  function loadFromFile() {
-    const input = document.getElementById("fileInput");
-    if (!input.files.length) {
-      alert("Wybierz plik JSON do zaimportowania.");
-      return;
-    }
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      try {
-        const imported = JSON.parse(e.target.result);
-        if (Array.isArray(imported)) {
-          entries = imported;
-          saveToLocalStorage();
-          updateServicesDatalist();
-          renderEntries();
-          alert("Dane zostały zaimportowane.");
-          input.value = ""; // reset input
-        } else {
-          alert("Nieprawidłowy format pliku.");
-        }
-      } catch {
-        alert("Błąd podczas odczytu pliku JSON.");
-      }
+  function saveToLocalStorage() {
+    const data = {
+      hoursEntries,
+      accountingEntries,
+      nextKpNumber,
+      settings
     };
-    reader.readAsText(file);
+    
+    localStorage.setItem('ewidencja_estihouse', JSON.stringify(data));
   }
 
-  // Na start wczytaj dane
-  loadFromLocalStorage();
-
+  function loadFromLocalStorage() {
+    const data = localStorage.getItem('ewidencja_estihouse');
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        hoursEntries = Array.isArray(parsed.hoursEntries) ? parsed.hoursEntries : [];
+        accountingEntries = Array.isArray(parsed.accountingEntries) ? parsed.accountingEntries : [];
+        nextKpNumber = typeof parsed.nextKpNumber === 'number' ? parsed.nextKpNumber : 1;
+        settings = typeof parsed.settings === 'object' ? parsed.settings : {
+          companyName: "ESTIHOUSE sp. z o.o.",
+          companyAddress: "Różana 39",
+          companyPostalCode: "67-100",
+          companyCity: "Nowe Żabno",
+          companyNip: "9252142276",
+          defaultHourlyRate: 150.00,
+          clientRate: 180.00,
+          healthContributionRate: 9,
+          taxAdvanceRate: 12
+        };
+      } catch (e) {
+        console.warn('Nie udało się wczytać danych z localStorage:', e);
+        // Zainicjuj puste tablice jeśli parsing się nie powiódł
+        hoursEntries = [];
+        accountingEntries = [];
+        nextKpNumber = 1;
+      }
+    } else {
+      // Zainicjuj puste tablice jeśli nie ma danych w localStorage
+      hoursEntries = [];
+      accountingEntries = [];
+      nextKpNumber = 1;
+    }
+  }
 </script>
-
 </body>
 </html>
